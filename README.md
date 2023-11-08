@@ -27,3 +27,13 @@ To build and install with the default settings:
 ```sh
 ~/iito$ ./configure && make && sudo make install
 ```
+
+## Testing
+
+As the test suite needs to create virtual LEDs, dummy network device,
+etc., it requires root privileges to run. A suitable incantation is
+therefore typically:
+
+```sh
+~/iito$ sudo make check
+```

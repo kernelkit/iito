@@ -2,6 +2,7 @@
 *.o
 *.d
 /src/iitod
+/test/uled
 /iitod-*.tar*
 
 # autoconf/automake generated files
