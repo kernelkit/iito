@@ -1,65 +1,38 @@
-#include <libudev.h>
-
 #include "iito.h"
 
 struct in_udev {
-	struct in_dev dev;
-	const char *subsys;
-	const char *sysname;
-
-	struct udev *ud;
-	struct udev_monitor *udmon;
-	struct udev_device *uddev;
-	struct ev_io ev;
+	struct in_dev idev;
+	struct uddev uddev;
 };
 
-static void in_udev_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+static void in_udev_uddev_cb(struct uddev *uddev, struct udev_device *dev)
 {
-	struct in_udev *iu = container_of(w, struct in_udev, ev);
-	struct udev_device *uddev;
-	const char *sysname;
+	struct in_udev *iu = container_of(uddev, struct in_udev, uddev);
 
-	uddev = udev_monitor_receive_device(iu->udmon);
-	if (!uddev)
-		return;
+	udev_device_unref(uddev->dev);
+	uddev->dev = udev_device_ref(dev);
 
-	sysname = udev_device_get_sysname(uddev);
-	if (!sysname || strcmp(sysname, iu->sysname)) {
-		idev_dbg(&iu->dev, "Ignoring unrelated event from \"%s\"",
-			sysname);
-		return;
-	}
-
-	udev_device_unref(iu->uddev);
-	iu->uddev = uddev;
-
-	out_update(&iu->dev);
+	out_update(&iu->idev);
 }
 
-static int in_udev_sample(struct in_dev *dev, const char *prop, bool *state)
+static int in_udev_sample(struct in_dev *idev, const char *prop, bool *state)
 {
-	struct in_udev *iu = container_of(dev, struct in_udev, dev);
+	struct in_udev *iu = container_of(idev, struct in_udev, idev);
 	const char *val;
 
-	if (!iu->uddev) {
+	if (!uddev_present(&iu->uddev)) {
 		*state = false;
 		return 0;
 	}
 
 	if (!prop) {
-		val = udev_device_get_action(iu->uddev);
-
-		if (val && !strcmp(val, "remove"))
-			*state = false;
-		else
-			*state = true;
-
+		*state = true;
 		return 0;
 	}
 
-	val = udev_device_get_sysattr_value(iu->uddev, prop);
+	val = udev_device_get_sysattr_value(iu->uddev.dev, prop);
 	if (!val) {
-		idev_dbg(&iu->dev, "Interpreting absence of property \"%s\" as false",
+		idev_dbg(&iu->idev, "Interpreting absence of property \"%s\" as false",
 			prop);
 
 		*state = false;
@@ -74,7 +47,7 @@ static int in_udev_sample(struct in_dev *dev, const char *prop, bool *state)
 		return 0;
 	}
 
-	idev_wrn(&iu->dev, "Interpreting available, but non-boolean, value of \"%s\" (%s), as true",
+	idev_wrn(&iu->idev, "Interpreting available, but non-boolean, value of \"%s\" (%s), as true",
 		prop, val);
 	*state = true;
 	return 0;
@@ -88,59 +61,37 @@ static int in_udev_probe(const char *name, json_t *data)
 	iu = calloc(1, sizeof(*iu));
 	assert(iu);
 
-	iu->dev.name = name;
-	iu->dev.sample = in_udev_sample;
+	*iu = (struct in_udev) {
+		.idev = {
+			.name = name,
+			.sample = in_udev_sample,
+		},
+		.uddev = {
+			.cb = in_udev_uddev_cb,
+		},
+	};
 
-	err = json_unpack(data, "{s:s}", "subsystem", &iu->subsys);
+	err = json_unpack(data, "{s:s}", "subsystem", &iu->uddev.subsys);
 	if (err) {
-		idev_err(&iu->dev, "Required property \"subsystem\" is missing");
+		idev_err(&iu->idev, "Required property \"subsystem\" is missing");
 		goto err;
 	}
 
-	err = json_unpack(data, "{s:s}", "sysname", &iu->sysname);
+	err = json_unpack(data, "{s:s}", "sysname", &iu->uddev.sysname);
 	if (err)
-		iu->sysname = name;
+		iu->uddev.sysname = name;
 
-	iu->ud = udev_new();
-	if (!iu->ud) {
-		idev_err(&iu->dev, "Unable to attach to udev");
+	err = uddev_init(&iu->uddev);
+	if (err) {
+		idev_err(&iu->idev, "Unable to attach to udev");
 		goto err;
 	}
 
-	iu->uddev = udev_device_new_from_subsystem_sysname(iu->ud,
-							   iu->subsys,
-							   iu->sysname);
-	if (!iu->uddev) {
-		idev_dbg(&iu->dev, "Found no %s named \"%s\"",
-			iu->subsys, iu->sysname);
-	}
-
-	iu->udmon = udev_monitor_new_from_netlink(iu->ud, "kernel");
-	if (!iu->udmon) {
-		idev_err(&iu->dev, "Unable to setup udev monitor");
-		return -ENOSYS;
-	}
-
-	udev_monitor_filter_add_match_subsystem_devtype(iu->udmon, iu->subsys, NULL);
-
-	ev_io_init(&iu->ev, in_udev_cb, udev_monitor_get_fd(iu->udmon), EV_READ);
-	ev_io_start(ev_default_loop(0), &iu->ev);
-
-	in_dev_add(&iu->dev);
-
-	udev_monitor_enable_receiving(iu->udmon);
+	in_dev_add(&iu->idev);
+	uddev_start(&iu->uddev);
 	return 0;
 
 err:
-	if (iu->udmon)
-		udev_monitor_unref(iu->udmon);
-
-	if (iu->uddev)
-		udev_device_unref(iu->uddev);
-
-	if (iu->ud)
-		udev_unref(iu->ud);
-
 	free(iu);
 	return err;
 }
