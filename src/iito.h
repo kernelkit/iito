@@ -51,8 +51,6 @@ struct uddev {
 	const char *subsys;
 	const char *sysname;
 	uddev_cb_t cb;
-	void *priv;
-
 
 	struct ev_io ev;
 	struct udev *ud;

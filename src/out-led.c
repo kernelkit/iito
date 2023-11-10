@@ -144,7 +144,6 @@ static int out_led_probe(const char *name, struct out_rule *rules,
 			.subsys = "leds",
 			.sysname = name,
 			.cb = out_led_uddev_cb,
-			.priv = ol,
 		},
 	};
 
