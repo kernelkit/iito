@@ -33,6 +33,15 @@
 #define dev_err(_dev, _fmt, ...) log_err("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define dev_wrn(_dev, _fmt, ...) log_wrn("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define dev_dbg(_dev, _fmt, ...) log_dbg("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define idev_err(_dev, _fmt, ...) log_err("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define idev_wrn(_dev, _fmt, ...) log_wrn("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define idev_inf(_dev, _fmt, ...) log_inf("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define idev_dbg(_dev, _fmt, ...) log_dbg("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+
+#define odev_err(_dev, _fmt, ...) log_err("(out) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define odev_wrn(_dev, _fmt, ...) log_wrn("(out) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define odev_inf(_dev, _fmt, ...) log_inf("(out) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+#define odev_dbg(_dev, _fmt, ...) log_dbg("(out) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 
 
 /* uddev */
