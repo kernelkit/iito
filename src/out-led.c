@@ -3,129 +3,163 @@
 #define _PATH_SYSFS_LED "/sys/class/leds"
 
 struct out_led {
-	struct out_dev dev;
+	struct out_dev odev;
+	struct uddev uddev;
 
-	FILE *trigger;
-	FILE *brightness;
 	int max_brightness;
-};
-
-struct out_led_rule {
-	const char *trigger;
-	int brightness;
 };
 
 static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 {
-	static const struct out_led_rule off = {
-		.trigger = "none",
-		.brightness = 0,
-	};
+	struct out_led *ol = container_of(odev, struct out_led, odev);
+	const char *key, *trigger = "none";
+	int brightness = 0;
+	bool set_max;
+	json_t *val;
 
-	struct out_led *ol = container_of(odev, struct out_led, dev);
-	const struct out_led_rule *olr;
-
-	olr = rule ? rule->priv : &off;
-
-	if ((fprintf(ol->trigger, "%s\n", olr->trigger) < 0) ||
-	    fflush(ol->trigger)) {
-		fprintf(stderr, "Unable to set trigger on \"%s\" to \"%s\"\n",
-			odev->name, olr->trigger);
-		return -EIO;
+	if (!uddev_present(&ol->uddev)) {
+		odev_dbg(&ol->odev, "Absent, not applying");
+		return 0;
 	}
 
-	if ((fprintf(ol->brightness, "%d\n", olr->brightness) < 0) ||
-	    fflush(ol->brightness)) {
-		fprintf(stderr, "Unable to set brightness on \"%s\" to %d\n",
-			odev->name, olr->brightness);
-		return -EIO;
+	if (rule) {
+		if (json_unpack(rule->state, "{s:s}", "trigger", &trigger))
+			trigger = "none";
+
+		/* Special handling of brightness: may be either bool
+		 * or int. Interpret a bool as either 0 (false) or the
+		 * LED's max_brightness (true) */
+		if (!json_unpack(rule->state, "{s:b}", "brightness", &set_max))
+			brightness = set_max ? ol->max_brightness : 0;
+		else if (json_unpack(rule->state, "{s:i}", "brightness", &brightness))
+			brightness = ol->max_brightness;
 	}
 
-	dev_dbg(odev, "Set trigger:%s brightness:%d", olr->trigger, olr->brightness);
+	/* Always set trigger and brightness, which have default fallback values */
+
+	if (uddev_set_sysfs(&ol->uddev, "trigger", trigger))
+		return -EIO;
+	if (uddev_set_sysfs(&ol->uddev, "brightness", "%d", brightness))
+		return -EIO;
+
+	odev_dbg(&ol->odev, "Set trigger:%s brightness:%d", trigger, brightness);
+
+	if (!rule)
+		return 0;
+
+	/* Then apply any trigger specific attributes, if specified */
+
+	json_object_foreach(rule->state, key, val) {
+		if (!strcmp(key, "trigger") || !strcmp(key, "brightness"))
+			continue;
+
+		switch (json_typeof(val)) {
+		case JSON_STRING:
+			if (uddev_set_sysfs(&ol->uddev, key, json_string_value(val)))
+				return -EIO;
+			break;
+		case JSON_INTEGER:
+			if (uddev_set_sysfs(&ol->uddev, key, "%d", json_integer_value(val)))
+				return -EIO;
+			break;
+		case JSON_TRUE:
+			if (uddev_set_sysfs(&ol->uddev, key, "1"))
+				return -EIO;
+			break;
+		case JSON_FALSE:
+			if (uddev_set_sysfs(&ol->uddev, key, "0"))
+				return -EIO;
+			break;
+		case JSON_NULL:
+			if (uddev_set_sysfs(&ol->uddev, key, ""))
+				return -EIO;
+			break;
+		default:
+			odev_err(&ol->odev, "Unable to handle attribute \"%s\"", key);
+			return -EINVAL;
+		}
+	}
+
 	return 0;
 }
 
-static int out_led_parse_rules(struct out_led *ol,
-			       struct out_rule *rules, size_t n_rules)
+static void out_led_set_max(struct out_led *ol)
 {
-	struct out_led_rule *olr;
-	struct out_rule *rule;
-	bool brightness;
-	size_t i;
-	int err;
+	const char *maxstr;
 
-	for (i = 0, rule = rules; i < n_rules; i++, rule++) {
-		olr = calloc(1, sizeof(*olr));
-		assert(olr);
+	maxstr = udev_device_get_sysattr_value(ol->uddev.dev, "max_brightness");
+	if (!maxstr)
+		goto fallback;
 
-		err = json_unpack(rule->state, "{s:s}", "trigger", &olr->trigger);
-		if (err)
-			olr->trigger = "none";
+	errno = 0;
+	ol->max_brightness = strtol(maxstr, NULL, 0);
+	if (errno)
+		goto fallback;
 
-		if (!json_unpack(rule->state, "{s:b}", "brightness", &brightness))
-			olr->brightness = brightness ? ol->max_brightness : 0;
-		else if (json_unpack(rule->state, "{s:i}", "brightness", &olr->brightness))
-			olr->brightness = ol->max_brightness;
+	return;
 
-		rule->priv = olr;
-	}
+fallback:
+	odev_err(&ol->odev, "Unable to read \"max_brightness\", falling back to 1");
+	ol->max_brightness = 1;
+}
 
-	return 0;
+static void out_led_uddev_cb(struct uddev *uddev, struct udev_device *dev)
+{
+	struct out_led *ol = container_of(uddev, struct out_led, uddev);
+	const char *action;
+
+	action = udev_device_get_action(dev);
+	if (!action || strcmp(action, "add"))
+		return;
+
+	udev_device_unref(uddev->dev);
+	uddev->dev = udev_device_ref(dev);
+
+	out_led_set_max(ol);
+
+	odev_inf(&ol->odev, "Hotplugged, applying active rule");
+
+	if (out_led_apply(&ol->odev, ol->odev.active_rule))
+		odev_err(&ol->odev, "Unable to apply active rule after hotplug");
 }
 
 static int out_led_probe(const char *name, struct out_rule *rules,
 			 size_t n_rules, json_t *data)
 {
-	char path[PATH_MAX];
 	struct out_led *ol;
-	FILE *max;
 	int err;
 
 	ol = calloc(1, sizeof(*ol));
-	assert(ol);
+	if (!ol)
+		return -ENOMEM;
 
-	snprintf(path, sizeof(path), _PATH_SYSFS_LED "/%s/max_brightness", name);
-	max = fopen(path, "r");
-	if (!max || (fscanf(max, "%d", &ol->max_brightness) != 1)) {
-		fprintf(stderr, "Unable to determine brightness range for LED \"%s\": %m\n", name);
-		err = -ENODEV;
-		goto err;
-	}
-	fclose(max);
+	*ol = (struct out_led) {
+		.odev = {
+			.name = name,
+			.apply = out_led_apply,
+			.rules = rules,
+			.n_rules = n_rules,
+		},
+		.uddev = {
+			.subsys = "leds",
+			.sysname = name,
+			.cb = out_led_uddev_cb,
+			.priv = ol,
+		},
+	};
 
-	snprintf(path, sizeof(path), _PATH_SYSFS_LED "/%s/trigger", name);
-	ol->trigger = fopen(path, "w");
-	if (!ol->trigger) {
-		fprintf(stderr, "Unable to open trigger for LED \"%s\": %m\n", name);
-		err = -ENODEV;
-		goto err;
-	}
-
-	snprintf(path, sizeof(path), _PATH_SYSFS_LED "/%s/brightness", name);
-	ol->brightness = fopen(path, "w");
-	if (!ol->brightness) {
-		fprintf(stderr, "Unable to open brightness for LED \"%s\": %m\n", name);
-		err = -ENODEV;
-		goto err;
-	}
-
-	err = out_led_parse_rules(ol, rules, n_rules);
+	err = uddev_init(&ol->uddev);
 	if (err)
 		goto err;
 
-	ol->dev.name = name;
-	ol->dev.rules = rules;
-	ol->dev.n_rules = n_rules;
-	ol->dev.apply = out_led_apply;
-	out_dev_add(&ol->dev);
+	if (uddev_present(&ol->uddev))
+		out_led_set_max(ol);
+
+	out_dev_add(&ol->odev);
+	uddev_start(&ol->uddev);
 	return 0;
 
 err:
-	if (ol->brightness)
-		fclose(ol->brightness);
-	if (ol->trigger)
-		fclose(ol->trigger);
-
 	free(ol);
 	return err;
 }
