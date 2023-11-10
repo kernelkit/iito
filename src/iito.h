@@ -11,6 +11,8 @@
 
 #include <ev.h>
 #include <jansson.h>
+#include <libudev.h>
+
 
 /* util */
 
@@ -31,6 +33,34 @@
 #define dev_err(_dev, _fmt, ...) log_err("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define dev_wrn(_dev, _fmt, ...) log_wrn("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define dev_dbg(_dev, _fmt, ...) log_dbg("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
+
+
+/* uddev */
+
+struct uddev;
+
+typedef void (*uddev_cb_t)(struct uddev *uddev, struct udev_device *dev);
+
+struct uddev {
+	const char *subsys;
+	const char *sysname;
+	uddev_cb_t cb;
+	void *priv;
+
+
+	struct ev_io ev;
+	struct udev *ud;
+	struct udev_monitor *mon;
+	struct udev_device *dev;
+};
+
+bool uddev_present(struct uddev *uddev);
+int uddev_set_sysfs(struct uddev *uddev, const char *attr, const char *fmt, ...);
+
+int uddev_start(struct uddev *uddev);
+int uddev_init(struct uddev *uddev);
+
+
 /* input */
 
 struct in_dev {

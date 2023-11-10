@@ -10,4 +10,4 @@ iitod_SOURCES  = \
 	\
 	out-led.c \
 	\
-	in.c out.c main.c iito.h
+	in.c out.c main.c uddev.c iito.h
