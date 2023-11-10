@@ -27,7 +27,7 @@ static int in_path_sample(struct in_dev *dev, const char *prop, bool *state)
 		return 0;
 	}
 
-	dev_err(&ip->dev, "Unable to sample unknown property \"%s\"", prop);
+	idev_err(&ip->dev, "Unable to sample unknown property \"%s\"", prop);
 	return -EINVAL;
 }
 

@@ -25,7 +25,7 @@ static void in_udev_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 	sysname = udev_device_get_sysname(uddev);
 	if (!sysname || strcmp(sysname, iu->sysname)) {
-		dev_dbg(&iu->dev, "Ignoring unrelated event from \"%s\"",
+		idev_dbg(&iu->dev, "Ignoring unrelated event from \"%s\"",
 			sysname);
 		return;
 	}
@@ -59,7 +59,7 @@ static int in_udev_sample(struct in_dev *dev, const char *prop, bool *state)
 
 	val = udev_device_get_sysattr_value(iu->uddev, prop);
 	if (!val) {
-		dev_dbg(&iu->dev, "Interpreting absence of property \"%s\" as false",
+		idev_dbg(&iu->dev, "Interpreting absence of property \"%s\" as false",
 			prop);
 
 		*state = false;
@@ -74,7 +74,7 @@ static int in_udev_sample(struct in_dev *dev, const char *prop, bool *state)
 		return 0;
 	}
 
-	dev_wrn(&iu->dev, "Interpreting available, but non-boolean, value of \"%s\" (%s), as true",
+	idev_wrn(&iu->dev, "Interpreting available, but non-boolean, value of \"%s\" (%s), as true",
 		prop, val);
 	*state = true;
 	return 0;
@@ -93,7 +93,7 @@ static int in_udev_probe(const char *name, json_t *data)
 
 	err = json_unpack(data, "{s:s}", "subsystem", &iu->subsys);
 	if (err) {
-		dev_err(&iu->dev, "Required property \"subsystem\" is missing");
+		idev_err(&iu->dev, "Required property \"subsystem\" is missing");
 		goto err;
 	}
 
@@ -103,7 +103,7 @@ static int in_udev_probe(const char *name, json_t *data)
 
 	iu->ud = udev_new();
 	if (!iu->ud) {
-		dev_err(&iu->dev, "Unable to attach to udev");
+		idev_err(&iu->dev, "Unable to attach to udev");
 		goto err;
 	}
 
@@ -111,13 +111,13 @@ static int in_udev_probe(const char *name, json_t *data)
 							   iu->subsys,
 							   iu->sysname);
 	if (!iu->uddev) {
-		dev_dbg(&iu->dev, "Found no %s named \"%s\"",
+		idev_dbg(&iu->dev, "Found no %s named \"%s\"",
 			iu->subsys, iu->sysname);
 	}
 
 	iu->udmon = udev_monitor_new_from_netlink(iu->ud, "kernel");
 	if (!iu->udmon) {
-		dev_err(&iu->dev, "Unable to setup udev monitor");
+		idev_err(&iu->dev, "Unable to setup udev monitor");
 		return -ENOSYS;
 	}
 

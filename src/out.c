@@ -34,39 +34,43 @@ static int out_update_one(struct out_dev *odev)
 	size_t i;
 	int err;
 
-	dev_dbg(odev, "Update");
+	odev_dbg(odev, "Update");
 
 	for (i = 0, rule = odev->rules; i < odev->n_rules; i++, rule++) {
 		err = rule->idev->sample(rule->idev, rule->prop, &state);
 		if (err) {
-			dev_err(odev, "Failed to sample \"%s%s%s\" (%d)",
+			odev_err(odev, "Failed to sample \"%s%s%s\" (%d)",
 				rule->idev->name, rule->prop ? ":" : "",
 				rule->prop ? : "", err);
 			return err;
 		}
 
 		if (state ^ rule->invert) {
-			dev_dbg(odev, "Apply rule \"%s%s%s%s\"",
+			odev_dbg(odev, "Apply rule \"%s%s%s%s\"",
 				rule->invert ? "!" : "",
 				rule->idev->name, rule->prop ? ":" : "",
 				rule->prop ? : "");
 
 			err = odev->apply(odev, rule);
 			if (err)
-				dev_err(odev, "Failed to apply rule \"%s%s%s%s\" (%d)",
+				odev_err(odev, "Failed to apply rule \"%s%s%s%s\" (%d)",
 					rule->invert ? "!" : "",
 					rule->idev->name, rule->prop ? ":" : "",
 					rule->prop ? : "", err);
+			else
+				odev->active_rule = rule;
 
 			return err;
 		}
 	}
 
-	dev_dbg(odev, "Apply default rule");
+	odev_dbg(odev, "Apply default rule");
 
 	err = odev->apply(odev, NULL);
 	if (err)
-		dev_err(odev, "Failed to apply default rule (%d)", err);
+		odev_err(odev, "Failed to apply default rule (%d)", err);
+	else
+		odev->active_rule = NULL;
 
 	return err;
 }

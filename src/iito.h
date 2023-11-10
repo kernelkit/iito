@@ -30,9 +30,6 @@
 #define log_inf(_fmt, ...) syslog(LOG_INFO,    "I " _fmt, ##__VA_ARGS__)
 #define log_dbg(_fmt, ...) syslog(LOG_DEBUG,   "D " _fmt, ##__VA_ARGS__)
 
-#define dev_err(_dev, _fmt, ...) log_err("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
-#define dev_wrn(_dev, _fmt, ...) log_wrn("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
-#define dev_dbg(_dev, _fmt, ...) log_dbg("%s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define idev_err(_dev, _fmt, ...) log_err("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define idev_wrn(_dev, _fmt, ...) log_wrn("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
 #define idev_inf(_dev, _fmt, ...) log_inf("(in) %s: " _fmt, (_dev)->name, ##__VA_ARGS__)
@@ -105,6 +102,7 @@ struct out_dev {
 	struct out_rule *rules;
 	size_t n_rules;
 
+	struct out_rule *active_rule;
 	int (*apply)(struct out_dev *odev, struct out_rule *rule);
 };
 
