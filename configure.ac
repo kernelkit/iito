@@ -20,7 +20,7 @@ AC_SEARCH_LIBS([ev_run], [ev], [], [
 	AC_MSG_ERROR([Unable to locate libev])
 ])
 PKG_CHECK_MODULES([libjansson], [jansson >= 2.13.1])
-PKG_CHECK_MODULES([libudev], [libudev >= 249])
+PKG_CHECK_MODULES([libudev], [libudev >= 243])
 
 AC_HEADER_STDC
 
