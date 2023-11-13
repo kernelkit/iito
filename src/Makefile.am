@@ -1,6 +1,6 @@
 sbin_PROGRAMS = iitod
 
-iitod_CPPFLAGS = -include $(top_builddir)/config.h
+iitod_CPPFLAGS = -include $(top_builddir)/config.h -DSYSCONFDIR=\"$(sysconfdir)\"
 iitod_CFLAGS   = -Wall -Wextra -Wno-unused-parameter
 iitod_CFLAGS  += $(libev_CFLAGS) $(libjansson_CFLAGS) $(libudev_CFLAGS)
 iitod_LDADD    = $(libev_LIBS) $(libjansson_LIBS) $(libudev_LIBS)
