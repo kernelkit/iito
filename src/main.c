@@ -3,6 +3,23 @@
 #define SYSLOG_NAMES
 #include "iito.h"
 
+static int logmask = LOG_UPTO(LOG_NOTICE);
+
+static void sigusr1_cb(struct ev_loop *loop, struct ev_signal *sig, int revents)
+{
+	int current = setlogmask(0);
+
+	if (current == logmask)
+		setlogmask(LOG_UPTO(LOG_DEBUG));
+	else
+		setlogmask(logmask);
+}
+
+static void sigusr2_cb(struct ev_loop *loop, struct ev_signal *sig, int revents)
+{
+	out_dump();
+}
+
 #define DEFAULT_CONFIG SYSCONFDIR "/iitod.json"
 
 static void usage()
@@ -48,12 +65,12 @@ int logmask_from_str(const char *str)
 
 int main(int argc, char **argv)
 {
-	int logopt = 0, logmask = LOG_UPTO(LOG_NOTICE);
 	struct ev_loop *loop = ev_default_loop(0);
 	const char *file = DEFAULT_CONFIG;
+	struct ev_signal sigusr[2];
+	int err, opt, logopt = 0;
 	json_t *cfg, *ins, *outs;
 	json_error_t jerr;
-	int err, opt;
 
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
@@ -128,6 +145,11 @@ int main(int argc, char **argv)
 		log_cri("Unable to set initial output states (%d)\n", err);
 		return 1;
 	}
+
+	ev_signal_init(&sigusr[0], sigusr1_cb, SIGUSR1);
+	ev_signal_init(&sigusr[1], sigusr2_cb, SIGUSR2);
+	ev_signal_start(loop, &sigusr[0]);
+	ev_signal_start(loop, &sigusr[1]);
 
 	log_not("Entering event loop");
 	return ev_run(loop, 0);

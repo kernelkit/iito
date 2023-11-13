@@ -3,6 +3,26 @@
 static struct out_dev **g_out_devs;
 static size_t g_out_devs_n;
 
+void out_dump(void)
+{
+	struct out_dev **odev;
+	struct out_rule *rule;
+	size_t i;
+
+	log_not("Output status:");
+	for (i = 0, odev = g_out_devs; i < g_out_devs_n; i++, odev++) {
+		rule = (*odev)->active_rule;
+		if (rule)
+			log_not("  (out) %s: active rule: \"%s%s%s%s\"",
+				(*odev)->name,
+				rule->invert ? "!" : "",
+				rule->idev->name, rule->prop ? ":" : "",
+				rule->prop ? : "");
+		else
+			log_not("  (out) %s: active rule: none", (*odev)->name);
+	}
+}
+
 void out_dev_add(struct out_dev *odev)
 {
 	struct out_dev **odevs;

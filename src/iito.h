@@ -104,6 +104,8 @@ struct out_dev {
 	int (*apply)(struct out_dev *odev, struct out_rule *rule);
 };
 
+void out_dump(void);
+
 int out_update(const struct in_dev *filter);
 
 void out_dev_add(struct out_dev *odev);
