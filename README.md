@@ -62,8 +62,8 @@ Here is an example `iitod` configuration for this system:
 			"mydaemon": { "path": "/run/mydaemon.pid" }
 		},
 		"udev": {
-			"power-1": { "subsys": "power_supply" },
-			"power-2": { "subsys": "power_supply" }
+			"power-1": { "subsystem": "power_supply" },
+			"power-2": { "subsystem": "power_supply" }
 		}
 	},
 
