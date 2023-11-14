@@ -35,11 +35,22 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 			brightness = ol->max_brightness;
 	}
 
-	/* Always set trigger and brightness, which have default fallback values */
+	/* Always set trigger and brightness, which have default
+	 * fallback values.
+	 *
+	 * We make sure to always start from none/0 because when
+	 * multiple LED's are being updated due to some shared event,
+	 * we want their timers to start counting as close together as
+	 * possible - to get the appearence of them blinking in
+	 * unison.
+	 */
 
-	if (uddev_set_sysfs(&ol->uddev, "trigger", trigger))
+	if (uddev_set_sysfs(&ol->uddev, "trigger", "none") ||
+	    uddev_set_sysfs(&ol->uddev, "brightness", "0"))
 		return -EIO;
-	if (uddev_set_sysfs(&ol->uddev, "brightness", "%d", brightness))
+
+	if (uddev_set_sysfs(&ol->uddev, "trigger", trigger) ||
+	    uddev_set_sysfs(&ol->uddev, "brightness", "%d", brightness))
 		return -EIO;
 
 	odev_dbg(&ol->odev, "Set trigger:%s brightness:%d", trigger, brightness);
