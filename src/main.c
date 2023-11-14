@@ -3,6 +3,27 @@
 #define SYSLOG_NAMES
 #include "iito.h"
 
+static json_t *g_config;
+
+int alias_resolve(json_t **aliasp)
+{
+	const char *name;
+	json_t *alias;
+
+	name = json_string_value(*aliasp);
+	if (!name || name[0] != '@')
+		return 0;
+
+	if (json_unpack(g_config, "{s:{s:o}}", "aliases", &name[1], &alias)) {
+		log_err("Can't resolve unknown alias \"%s\"", name);
+		return -ENOENT;
+	}
+
+	json_decref(*aliasp);
+	*aliasp = alias;
+	return 0;
+}
+
 static int logmask = LOG_UPTO(LOG_NOTICE);
 
 static void sigusr1_cb(struct ev_loop *loop, struct ev_signal *sig, int revents)
@@ -69,7 +90,7 @@ int main(int argc, char **argv)
 	const char *file = DEFAULT_CONFIG;
 	struct ev_signal sigusr[2];
 	int err, opt, logopt = 0;
-	json_t *cfg, *ins, *outs;
+	json_t *ins, *outs;
 	json_error_t jerr;
 
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
@@ -106,23 +127,23 @@ int main(int argc, char **argv)
 	setlogmask(logmask);
 
 	if (!strcmp(file, "-"))
-		cfg = json_loadf(stdin, 0, &jerr);
+		g_config = json_loadf(stdin, 0, &jerr);
 	else
-		cfg = json_load_file(file, 0, &jerr);
+		g_config = json_load_file(file, 0, &jerr);
 
-	if (!cfg) {
+	if (!g_config) {
 		log_cri("Unable to parse config (%s:%d): %s",
 		   jerr.source, jerr.line, jerr.text);
 		return 1;
 	}
 
-	err = json_unpack(cfg, "{s:o}", "input", &ins);
+	err = json_unpack(g_config, "{s:o}", "input", &ins);
 	if (err) {
 		log_wrn("Configuration does not define any inputs");
 		ins = json_object();
 	}
 
-	err = json_unpack(cfg, "{s:o}", "output", &outs);
+	err = json_unpack(g_config, "{s:o}", "output", &outs);
 	if (err) {
 		log_cri("Configuration does not define any outputs");
 		return 1;

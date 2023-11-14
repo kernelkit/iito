@@ -118,4 +118,9 @@ struct out_drv {
 
 int out_probe(json_t *outs);
 
+
+/* main */
+
+int alias_resolve(json_t **aliasp);
+
 #endif	/* _IITO_H */

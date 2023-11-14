@@ -138,6 +138,10 @@ static int out_probe_rule(json_t *data, struct out_rule *rule)
 	if (err)
 		return err;
 
+	err = alias_resolve(&rule->state);
+	if (err)
+		return err;
+
 	if (devprop[0] == '!') {
 		rule->invert = true;
 		devprop++;

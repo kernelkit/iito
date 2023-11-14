@@ -151,11 +151,65 @@ EOF
     wait $pid || true
 }
 
+test_alias()
+{
+    f1=$(mktemp)
+    f2=$(mktemp)
+
+    $IITOD <<EOF &
+{
+	"input": {
+		"path": {
+			"f1": { "path": "${f1}" },
+			"f2": { "path": "${f2}" }
+		}
+	},
+
+	"output": {
+		"led": {
+			"iito-test::1": {
+				"rules": [
+					{ "if": "!f2", "then": "@full" },
+					{ "if":  "f1", "then": { "brightness": 1 } },
+					{ "if": "!f1", "then": "@two" }
+				]
+			},
+			"iito-test::2": {
+				"rules": [
+					{ "if": "!f2", "then": "@full" }
+				]
+			}
+		}
+	},
+
+	"aliases": {
+		"two": { "brightness": 2 },
+		"full": { "brightness": true }
+	}
+}
+EOF
+    pid=$!
+
+    echo "Both f1 and f2 exists"
+    uled expect x 1 0 x || return 1
+
+    echo "Remove f1"
+    rm $f1
+    uled expect x 2 0 x || return 1
+
+    echo "Remove f2"
+    rm $f2
+    uled expect x 15 127 x || return 1
+
+    kill $pid
+    wait $pid || true
+}
+
 modprobe uleds || die "uleds module not available"
 
 [ "$IITOD" ] || die "\$IITOD is not set"
 
-for t in self path udev; do
+for t in self path udev alias; do
     uled start
 
     printf ">>> START \"%s\"\n" "$t"
