@@ -120,9 +120,11 @@ int out_update(const struct in_dev *filter)
 
 
 extern const struct out_drv out_led;
+extern const struct out_drv out_led_group;
 
 static const struct out_drv *out_drvs[] = {
 	&out_led,
+	&out_led_group,
 
 	NULL
 };

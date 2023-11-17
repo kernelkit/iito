@@ -178,3 +178,81 @@ const struct out_drv out_led = {
 	.name = "led",
 	.probe = out_led_probe,
 };
+
+static int out_led_group_probe(const char *name, struct out_rule *rules,
+			       size_t n_rules, json_t *data)
+{
+	struct udev_enumerate *enumer;
+	struct udev_list_entry *list;
+	struct udev *udev;
+
+	size_t i, n_matches;
+	const char *match;
+	json_t *matches;
+	int err = -EINVAL;
+
+	udev = udev_new();
+	enumer = udev_enumerate_new(udev);
+
+	if (udev_enumerate_add_match_subsystem(enumer, "leds"))
+		goto out;
+
+	if (!json_unpack(data, "{s: o}", "match", &matches)) {
+		switch (json_typeof(matches)) {
+		case JSON_STRING:
+			if (udev_enumerate_add_match_sysname(enumer, json_string_value(matches)))
+				goto out;
+			break;
+		case JSON_ARRAY:
+			n_matches = json_array_size(matches);
+
+			for (i = 0; i < n_matches; i++) {
+				match = json_string_value(json_array_get(matches, i));
+				if (!match)
+					goto match_error;
+
+				if (udev_enumerate_add_match_sysname(enumer, match))
+					goto out;
+			}
+
+			break;
+		default:
+		match_error:
+			log_err("(led-group) %s: \"match\" must be a string or list of strings",
+				name);
+			goto out;
+		}
+	} else {
+		if (udev_enumerate_add_match_sysname(enumer, name))
+			goto out;
+	}
+
+	if (udev_enumerate_scan_devices(enumer))
+		goto out;
+
+	udev_list_entry_foreach(list, udev_enumerate_get_list_entry(enumer)) {
+		match = udev_list_entry_get_name(list);
+		match = rindex(match, '/') + 1;
+
+		log_dbg("(led-group) %s: Found matching LED \"%s\"", name, match);
+
+		err = out_led_probe(match, rules, n_rules, data);
+		if (err)
+			goto out;
+	}
+
+	err = 0;
+out:
+	if (enumer)
+		udev_enumerate_unref(enumer);
+
+	if (udev)
+		udev_unref(udev);
+
+	return err;
+}
+
+const struct out_drv out_led_group = {
+	.name = "led-group",
+	.probe = out_led_group_probe,
+};
