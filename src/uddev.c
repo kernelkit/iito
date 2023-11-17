@@ -57,6 +57,7 @@ static void uddev_ev_cb(struct ev_loop *loop, struct ev_io *ev, int revents)
 	sysname = udev_device_get_sysname(dev);
 	if (!sysname || strcmp(sysname, uddev->sysname)) {
 		uddev_dbg(uddev, "Ignoring unrelated event from \"%s\"", sysname);
+		udev_device_unref(dev);
 		return;
 	}
 
