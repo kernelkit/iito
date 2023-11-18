@@ -1,5 +1,5 @@
 AC_PREREQ(2.61)
-AC_INIT(iito, 1.0.0, https://github.com/kernelkit/iito/issues)
+AC_INIT(iito, 1.1.0, https://github.com/kernelkit/iito/issues)
 
 AC_GNU_SOURCE
 AM_INIT_AUTOMAKE(1.11 foreign subdir-objects)
