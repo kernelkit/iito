@@ -89,9 +89,10 @@ int main(int argc, char **argv)
 	struct ev_loop *loop = ev_default_loop(0);
 	const char *file = DEFAULT_CONFIG;
 	struct ev_signal sigusr[2];
-	int err, opt, logopt = 0;
+	int logopt = LOG_PID;
 	json_t *ins, *outs;
 	json_error_t jerr;
+	int err, opt;
 
 	while ((opt = getopt_long(argc, argv, sopts, lopts, NULL)) > 0) {
 		switch (opt) {
