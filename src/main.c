@@ -19,7 +19,7 @@ int alias_resolve(json_t **aliasp)
 		return -ENOENT;
 	}
 
-	json_decref(*aliasp);
+	/* Both are borrowed from g_config, which outlives every rule */
 	*aliasp = alias;
 	return 0;
 }
