@@ -95,6 +95,13 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 	return 0;
 }
 
+static bool out_led_present(struct out_dev *odev)
+{
+	struct out_led *ol = container_of(odev, struct out_led, odev);
+
+	return uddev_present(&ol->uddev);
+}
+
 static void out_led_set_max(struct out_led *ol)
 {
 	const char *maxstr;
@@ -148,7 +155,9 @@ static int out_led_probe(const char *name, struct out_rule *rules,
 	*ol = (struct out_led) {
 		.odev = {
 			.name = name,
+			.type = "led",
 			.apply = out_led_apply,
+			.present = out_led_present,
 			.rules = rules,
 			.n_rules = n_rules,
 		},

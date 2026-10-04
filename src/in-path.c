@@ -41,6 +41,7 @@ static int in_path_probe(const char *name, json_t *data)
 	assert(ip);
 
 	ip->dev.name = name;
+	ip->dev.type = "path";
 	ip->dev.sample = in_path_sample;
 
 	err = json_unpack(data, "{s:s}", "path", &path);
