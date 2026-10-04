@@ -14,7 +14,7 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 	struct out_led *ol = container_of(odev, struct out_led, odev);
 	const char *key, *trigger = "none";
 	int brightness = 0;
-	bool set_max;
+	int set_max;
 	json_t *val;
 
 	if (!uddev_present(&ol->uddev)) {
