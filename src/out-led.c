@@ -70,7 +70,8 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 				return -EIO;
 			break;
 		case JSON_INTEGER:
-			if (uddev_set_sysfs(&ol->uddev, key, "%d", json_integer_value(val)))
+			if (uddev_set_sysfs(&ol->uddev, key, "%" JSON_INTEGER_FORMAT,
+					    json_integer_value(val)))
 				return -EIO;
 			break;
 		case JSON_TRUE:
