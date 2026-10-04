@@ -34,7 +34,8 @@ int in_dev_find(const char *nameprop, struct in_dev **idevp, const char **propp)
 		sep = index(nameprop, '\0');
 
 	for (i = 0, idev = g_in_devs; i < g_in_devs_n; i++, idev++) {
-		if (!strncmp(nameprop, (*idev)->name, sep - nameprop)) {
+		if (strlen((*idev)->name) == (size_t)(sep - nameprop) &&
+		    !strncmp(nameprop, (*idev)->name, sep - nameprop)) {
 			*idevp = *idev;
 			return 0;
 		}
