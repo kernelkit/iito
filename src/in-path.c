@@ -1,5 +1,7 @@
 #include "iito.h"
 
+#include <fcntl.h>
+#include <unistd.h>
 
 struct in_path {
 	struct in_dev dev;
@@ -29,6 +31,28 @@ static int in_path_sample(struct in_dev *dev, const char *prop, bool *state)
 
 	idev_err(&ip->dev, "Unable to sample unknown property \"%s\"", prop);
 	return -EINVAL;
+}
+
+/*
+ * Create, or remove, the file a path input watches.  The new state is
+ * applied at once, instead of when ev_stat gets around to noticing it.
+ */
+int in_path_set(struct in_dev *idev, bool present)
+{
+	struct in_path *ip = container_of(idev, struct in_path, dev);
+	int fd;
+
+	if (present) {
+		fd = open(ip->stat.path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+		if (fd < 0)
+			return -errno;
+		close(fd);
+	} else if (unlink(ip->stat.path) && errno != ENOENT) {
+		return -errno;
+	}
+
+	ev_stat_stat(ev_default_loop(0), &ip->stat);
+	return out_update(idev);
 }
 
 static int in_path_probe(const char *name, json_t *data)

@@ -13,17 +13,107 @@ struct ipc_method {
 	json_t *(*call)(json_t *params, const char **err);
 };
 
+static struct ev_loop *g_loop;
 static struct ev_io g_ipc_ev;
+static struct ev_timer g_locate_timer;
+
+/*
+ * Locate is driven through the configuration's "locate" path input,
+ * the config's rules decide which LEDs blink, and how.
+ */
+static struct in_dev *ipc_locate_input(void)
+{
+	const char *prop = NULL;
+	struct in_dev *idev;
+
+	if (in_dev_find("locate", &idev, &prop) || strcmp(idev->type, "path"))
+		return NULL;
+
+	return idev;
+}
+
+static void ipc_locate_timeout(struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+	struct in_dev *idev = ipc_locate_input();
+
+	if (idev && in_path_set(idev, false))
+		log_err("(ipc) Failed stopping locate");
+}
+
+/* "remaining" is only set while a locate timeout is running */
+static json_t *ipc_locate_state(struct in_dev *idev)
+{
+	bool state = false;
+	json_t *st;
+
+	idev->sample(idev, NULL, &state);
+	st = json_pack("{s:b}", "locate", state);
+	if (ev_is_active(&g_locate_timer))
+		json_object_set_new(st, "remaining", json_integer(
+			(json_int_t)(ev_timer_remaining(g_loop, &g_locate_timer) + 0.999)));
+
+	return st;
+}
 
 static json_t *ipc_status(json_t *params, const char **err)
 {
-	return json_pack("{s:o, s:o}",
-			 "inputs", in_status(),
-			 "outputs", out_status());
+	struct in_dev *idev = ipc_locate_input();
+	json_t *st;
+
+	st = idev ? ipc_locate_state(idev) : json_object();
+	json_object_set_new(st, "inputs", in_status());
+	json_object_set_new(st, "outputs", out_status());
+
+	return st;
+}
+
+/*
+ * Without params, or without "enable", only report the current state.
+ * An optional "timeout", in seconds, stops locate by itself.
+ */
+static json_t *ipc_locate(json_t *params, const char **err)
+{
+	json_t *enable, *timeout;
+	struct in_dev *idev;
+
+	idev = ipc_locate_input();
+	if (!idev) {
+		*err = "no locate path input in the configuration";
+		return NULL;
+	}
+
+	enable = json_object_get(params, "enable");
+	timeout = json_object_get(params, "timeout");
+
+	if (enable && !json_is_boolean(enable)) {
+		*err = "\"enable\" must be true or false";
+		return NULL;
+	}
+	if (timeout && (!json_is_integer(timeout) || json_integer_value(timeout) <= 0)) {
+		*err = "\"timeout\" must be a positive number of seconds";
+		return NULL;
+	}
+
+	if (enable) {
+		ev_timer_stop(g_loop, &g_locate_timer);
+
+		if (in_path_set(idev, json_is_true(enable))) {
+			*err = "failed updating the locate input";
+			return NULL;
+		}
+
+		if (json_is_true(enable) && timeout) {
+			ev_timer_set(&g_locate_timer, (ev_tstamp)json_integer_value(timeout), 0.);
+			ev_timer_start(g_loop, &g_locate_timer);
+		}
+	}
+
+	return ipc_locate_state(idev);
 }
 
 static const struct ipc_method ipc_methods[] = {
 	{ "status", ipc_status },
+	{ "locate", ipc_locate },
 
 	{ NULL }
 };
@@ -174,6 +264,9 @@ int ipc_init(struct ev_loop *loop, const char *path)
 
 	if (chmod(path, gr ? 0660 : 0600))
 		goto err;
+
+	g_loop = loop;
+	ev_init(&g_locate_timer, ipc_locate_timeout);
 
 	ev_io_init(&g_ipc_ev, ipc_cb, sd, EV_READ);
 	ev_io_start(loop, &g_ipc_ev);

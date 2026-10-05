@@ -87,6 +87,8 @@ int in_dev_find(const char *nameprop, struct in_dev **idevp, const char **propp)
 
 json_t *in_status(void);
 
+int in_path_set(struct in_dev *idev, bool present);
+
 
 /* output */
 

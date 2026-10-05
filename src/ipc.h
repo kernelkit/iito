@@ -7,6 +7,7 @@
  * also newline terminated, and closes the connection.
  *
  *   request: { "method": "status" }
+ *            { "method": "locate", "params": { "enable": true, "timeout": 60 } }
  *   reply:   { "result": { ... } }  or  { "error": "reason" }
  */
 #define IPC_SOCKET      "/run/iitod.sock"
