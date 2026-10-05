@@ -2,6 +2,13 @@
 
 All notable changes to the project are documented in this file.
 
+## [UNRELEASED]
+
+### Added
+
+- IPC socket, `/run/iitod.sock`, with JSON `status` and `locate` methods
+- `iitoctl` tool to show status and start or stop locate
+
 ## [1.1.0] - 2023-11-18
 
 ### Added
