@@ -14,6 +14,7 @@ static void in_true_probe(void)
 	assert(tru);
 
 	tru->name = "true";
+	tru->type = "builtin";
 	tru->sample = in_true_sample;
 	in_dev_add(tru);
 }
@@ -34,7 +35,8 @@ int in_dev_find(const char *nameprop, struct in_dev **idevp, const char **propp)
 		sep = index(nameprop, '\0');
 
 	for (i = 0, idev = g_in_devs; i < g_in_devs_n; i++, idev++) {
-		if (!strncmp(nameprop, (*idev)->name, sep - nameprop)) {
+		if (strlen((*idev)->name) == (size_t)(sep - nameprop) &&
+		    !strncmp(nameprop, (*idev)->name, sep - nameprop)) {
 			*idevp = *idev;
 			return 0;
 		}
@@ -53,6 +55,29 @@ void in_dev_add(struct in_dev *idev)
 
 	idevs[g_in_devs_n++] = idev;
 	g_in_devs = idevs;
+}
+
+json_t *in_status(void)
+{
+	struct in_dev **idev;
+	json_t *ins, *val;
+	bool state;
+	size_t i;
+
+	ins = json_array();
+	for (i = 0, idev = g_in_devs; i < g_in_devs_n; i++, idev++) {
+		if ((*idev)->sample(*idev, NULL, &state))
+			val = json_null();
+		else
+			val = json_boolean(state);
+
+		json_array_append_new(ins, json_pack("{s:s, s:s, s:o}",
+						     "name", (*idev)->name,
+						     "type", (*idev)->type,
+						     "value", val));
+	}
+
+	return ins;
 }
 
 extern const struct in_drv in_path;

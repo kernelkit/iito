@@ -171,6 +171,55 @@ of these rules match, the LED will show a solid green, since an LEDs
 default rule is "off", and the green LEDs are hardwired to "on".
 
 
+## Querying and Controlling iitod
+
+`iitod` listens on `/run/iitod.sock`, owned by `root:wheel` with mode
+0660, so members of `wheel` need no `sudo`.  Use `-s PATH` to listen
+on another path.
+
+The `iitoctl` tool shows each output's rules, with their current value
+and the active rule marked with `*`:
+
+```sh
+~$ iitoctl
+Locate: off
+
+INPUT         TYPE     VALUE
+true          builtin  true
+locate        path     false
+startup       path     true
+panic         path     false
+
+sys:green:status (led)
+    IF         VALUE  THEN
+    locate     false  @blink-1hz
+    panic      false  @blink-5hz
+  * startup    true   @on
+    true       true   @blink-1hz
+```
+
+`iitoctl locate on` creates the file of the configuration's `locate`
+path input, until `iitoctl locate off`, or with `iitoctl locate on 60`,
+for 60 seconds.  Which LEDs blink, and how, is up to the rules using the
+`locate` input, e.g., `{ "if": "locate", "then": "@blink-5hz" }`.
+
+With `-j` the reply from `iitod` is printed as JSON.  The protocol is
+one newline terminated JSON request per connection, answered with one
+JSON reply:
+
+```
+{ "method": "status" }
+{ "method": "locate", "params": { "enable": true, "timeout": 60 } }
+
+{ "result": { ... } }
+{ "error": "reason" }
+```
+
+`locate` without `params` reports the current state.  While a timeout
+is running, the `locate` and `status` replies include the `remaining`
+seconds.
+
+
 ## Building and Installing
 
 iito uses Autotools, so the procdure is hopefully familiar to many.

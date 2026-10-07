@@ -2,6 +2,7 @@
 
 #define SYSLOG_NAMES
 #include "iito.h"
+#include "ipc.h"
 
 static json_t *g_config;
 
@@ -19,7 +20,7 @@ int alias_resolve(json_t **aliasp)
 		return -ENOENT;
 	}
 
-	json_decref(*aliasp);
+	/* Both are borrowed from g_config, which outlives every rule */
 	*aliasp = alias;
 	return 0;
 }
@@ -58,16 +59,18 @@ static void usage()
 		"  -f, --config=FILE   Use configuration from FILE instead of %s\n"
 		"  -h, --help          Print usage message and exit\n"
 		"  -l, --loglevel=LVL  Log level: none, err, warn, notice*, info, debug\n"
+		"  -s, --socket=PATH   Listen for iitoctl on PATH instead of %s\n"
 		"  -v, --version       Print version information\n",
-		DEFAULT_CONFIG);
+		DEFAULT_CONFIG, IPC_SOCKET);
 }
 
-static const char *sopts = "df:hl:v";
+static const char *sopts = "df:hl:s:v";
 static struct option lopts[] = {
 	{ "debug",    no_argument,       0, 'd' },
 	{ "config",   required_argument, 0, 'f' },
 	{ "help",     no_argument,       0, 'h' },
 	{ "loglevel", required_argument, 0, 'l' },
+	{ "socket",   required_argument, 0, 's' },
 	{ "version",  no_argument,       0, 'v' },
 
 	{ NULL }
@@ -88,6 +91,7 @@ int main(int argc, char **argv)
 {
 	struct ev_loop *loop = ev_default_loop(0);
 	const char *file = DEFAULT_CONFIG;
+	const char *sock = IPC_SOCKET;
 	struct ev_signal sigusr[2];
 	int logopt = LOG_PID;
 	json_t *ins, *outs;
@@ -112,6 +116,9 @@ int main(int argc, char **argv)
 				usage();
 				exit(1);
 			}
+			break;
+		case 's':
+			sock = optarg;
 			break;
 		case 'v':
 			puts(PACKAGE_STRING);
@@ -167,6 +174,9 @@ int main(int argc, char **argv)
 		log_cri("Unable to set initial output states (%d)\n", err);
 		return 1;
 	}
+
+	/* LEDs keep working without it, so only log a failure */
+	ipc_init(loop, sock);
 
 	ev_signal_init(&sigusr[0], sigusr1_cb, SIGUSR1);
 	ev_signal_init(&sigusr[1], sigusr2_cb, SIGUSR2);

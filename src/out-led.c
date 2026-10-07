@@ -14,7 +14,7 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 	struct out_led *ol = container_of(odev, struct out_led, odev);
 	const char *key, *trigger = "none";
 	int brightness = 0;
-	bool set_max;
+	int set_max;
 	json_t *val;
 
 	if (!uddev_present(&ol->uddev)) {
@@ -70,7 +70,8 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 				return -EIO;
 			break;
 		case JSON_INTEGER:
-			if (uddev_set_sysfs(&ol->uddev, key, "%d", json_integer_value(val)))
+			if (uddev_set_sysfs(&ol->uddev, key, "%" JSON_INTEGER_FORMAT,
+					    json_integer_value(val)))
 				return -EIO;
 			break;
 		case JSON_TRUE:
@@ -92,6 +93,13 @@ static int out_led_apply(struct out_dev *odev, struct out_rule *rule)
 	}
 
 	return 0;
+}
+
+static bool out_led_present(struct out_dev *odev)
+{
+	struct out_led *ol = container_of(odev, struct out_led, odev);
+
+	return uddev_present(&ol->uddev);
 }
 
 static void out_led_set_max(struct out_led *ol)
@@ -147,7 +155,9 @@ static int out_led_probe(const char *name, struct out_rule *rules,
 	*ol = (struct out_led) {
 		.odev = {
 			.name = name,
+			.type = "led",
 			.apply = out_led_apply,
+			.present = out_led_present,
 			.rules = rules,
 			.n_rules = n_rules,
 		},

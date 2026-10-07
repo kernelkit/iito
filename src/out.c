@@ -23,6 +23,53 @@ void out_dump(void)
 	}
 }
 
+static json_t *out_rule_status(struct out_rule *rule)
+{
+	char cond[128];
+	json_t *val;
+	bool state;
+
+	snprintf(cond, sizeof(cond), "%s%s%s%s", rule->invert ? "!" : "",
+		 rule->idev->name, rule->prop ? ":" : "", rule->prop ? : "");
+
+	if (rule->idev->sample(rule->idev, rule->prop, &state))
+		val = json_null();
+	else
+		val = json_boolean(state ^ rule->invert);
+
+	val = json_pack("{s:s, s:o, s:O}", "if", cond, "value", val,
+			"then", rule->state);
+	if (rule->alias)
+		json_object_set_new(val, "alias", json_string(rule->alias));
+
+	return val;
+}
+
+json_t *out_status(void)
+{
+	struct out_dev **odev;
+	json_t *outs, *rules;
+	size_t i, j;
+
+	outs = json_array();
+	for (i = 0, odev = g_out_devs; i < g_out_devs_n; i++, odev++) {
+		rules = json_array();
+		for (j = 0; j < (*odev)->n_rules; j++)
+			json_array_append_new(rules, out_rule_status(&(*odev)->rules[j]));
+
+		json_array_append_new(outs, json_pack("{s:s, s:s, s:b, s:o, s:o}",
+			"name", (*odev)->name,
+			"type", (*odev)->type,
+			"present", (*odev)->present(*odev),
+			"active", (*odev)->active_rule ?
+				json_integer((*odev)->active_rule - (*odev)->rules) :
+				json_null(),
+			"rules", rules));
+	}
+
+	return outs;
+}
+
 void out_dev_add(struct out_dev *odev)
 {
 	struct out_dev **odevs;
@@ -139,6 +186,11 @@ static int out_probe_rule(json_t *data, struct out_rule *rule)
 			  "then", &rule->state);
 	if (err)
 		return err;
+
+	if (json_is_string(rule->state)) {
+		rule->alias = strdup(json_string_value(rule->state));
+		assert(rule->alias);
+	}
 
 	err = alias_resolve(&rule->state);
 	if (err)

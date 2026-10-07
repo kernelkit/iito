@@ -64,6 +64,7 @@ static int in_udev_probe(const char *name, json_t *data)
 	*iu = (struct in_udev) {
 		.idev = {
 			.name = name,
+			.type = "udev",
 			.sample = in_udev_sample,
 		},
 		.uddev = {

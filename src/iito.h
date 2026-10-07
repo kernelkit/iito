@@ -69,6 +69,7 @@ int uddev_init(struct uddev *uddev);
 
 struct in_dev {
 	const char *name;
+	const char *type;
 
 	int (*sample)(struct in_dev *dev, const char *prop, bool *state);
 };
@@ -84,6 +85,10 @@ int in_probe(json_t *ins);
 
 int in_dev_find(const char *nameprop, struct in_dev **idevp, const char **propp);
 
+json_t *in_status(void);
+
+int in_path_set(struct in_dev *idev, bool present);
+
 
 /* output */
 
@@ -92,19 +97,23 @@ struct out_rule {
 	struct in_dev *idev;
 	const char *prop;
 	json_t *state;
+	char *alias;
 	void *priv;
 };
 
 struct out_dev {
 	const char *name;
+	const char *type;
 	struct out_rule *rules;
 	size_t n_rules;
 
 	struct out_rule *active_rule;
 	int (*apply)(struct out_dev *odev, struct out_rule *rule);
+	bool (*present)(struct out_dev *odev);
 };
 
 void out_dump(void);
+json_t *out_status(void);
 
 int out_update(const struct in_dev *filter);
 
@@ -117,6 +126,11 @@ struct out_drv {
 };
 
 int out_probe(json_t *outs);
+
+
+/* ipc */
+
+int ipc_init(struct ev_loop *loop, const char *path);
 
 
 /* main */
